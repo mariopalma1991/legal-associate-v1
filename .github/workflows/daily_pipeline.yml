@@ -1,0 +1,73 @@
+name: Daily Ingestion Pipeline
+
+on:
+  schedule:
+    # 06:00 UTC = ~midnight Chihuahua time (MDT, UTC-6)
+    - cron: '0 6 * * *'
+
+  workflow_dispatch:
+    inputs:
+      from_step:
+        description: 'Resume from this step (blank = full run)'
+        required: false
+        default: ''
+        type: choice
+        options:
+          - ''
+          - refresh_status
+          - cleanup_storage
+          - fetch_vigentes
+          - ingest
+          - download_docs
+          - chunk_docs
+          - embed_index
+
+# Prevent two runs from overlapping (e.g. if a run takes longer than 24 h)
+concurrency:
+  group: ingestion-pipeline
+  cancel-in-progress: false
+
+jobs:
+  pipeline:
+    name: Ingestion Pipeline
+    runs-on: ubuntu-latest
+    timeout-minutes: 150   # 2.5 h ceiling; adjust if embed step grows
+
+    env:
+      DATABASE_URL:        ${{ secrets.DATABASE_URL }}
+      COHERE_API_KEY:      ${{ secrets.COHERE_API_KEY }}
+      OPENAI_API_KEY:      ${{ secrets.OPENAI_API_KEY }}
+      LLAMA_CLOUD_API_KEY: ${{ secrets.LLAMA_CLOUD_API_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # ── Phase 1: cleanup (non-blocking — failures do NOT stop ingestion) ────
+      - name: "1 · Refresh licitacion status"
+        run: python run_pipeline.py --only refresh_status
+        continue-on-error: true
+
+      - name: "2 · Delete Terminado files from Storage"
+        run: python run_pipeline.py --only cleanup_storage
+        continue-on-error: true
+
+      # ── Phase 2: ingest new content (blocking — stops on first failure) ─────
+      - name: "3–7 · Fetch → Ingest → Download → Chunk → Embed"
+        run: |
+          FROM="${{ github.event.inputs.from_step }}"
+          # If user chose a cleanup-phase step in the manual trigger, skip to fetch
+          if [[ -z "$FROM" || "$FROM" == "refresh_status" || "$FROM" == "cleanup_storage" ]]; then
+            python run_pipeline.py --from fetch_vigentes
+          else
+            python run_pipeline.py --from "$FROM"
+          fi
