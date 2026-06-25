@@ -216,3 +216,25 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Project runtime output
+app_out.txt
+app_err.txt
+app_launch*.log
+app_launch_err.log
+fetch_out.txt
+fetch_err.txt
+eval_pipeline*.log
+eval_pipeline_results*.jsonl
+
+# Project local/generated artifacts
+docs/
+PENDINGS.md
+.gradio/
+.mcp.json
+.playwright-mcp/
+
+# Dev/utility scripts (keep only the two below)
+scripts/
+!scripts/reparse_llamaparse.py
+!scripts/explore_conversations.py
