@@ -38,6 +38,9 @@ jobs:
       COHERE_API_KEY:      ${{ secrets.COHERE_API_KEY }}
       OPENAI_API_KEY:      ${{ secrets.OPENAI_API_KEY }}
       LLAMA_CLOUD_API_KEY: ${{ secrets.LLAMA_CLOUD_API_KEY }}
+      SUPABASE_S3_ENDPOINT:  ${{ secrets.SUPABASE_S3_ENDPOINT }}
+      SUPABASE_S3_KEY_ID:    ${{ secrets.SUPABASE_S3_KEY_ID }}
+      SUPABASE_S3_SECRET:    ${{ secrets.SUPABASE_S3_SECRET }}
 
     steps:
       - name: Checkout
