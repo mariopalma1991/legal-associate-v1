@@ -238,3 +238,6 @@ PENDINGS.md
 scripts/
 !scripts/reparse_llamaparse.py
 !scripts/explore_conversations.py
+
+# Claude Code instructions (internal dev notes)
+CLAUDE.md
