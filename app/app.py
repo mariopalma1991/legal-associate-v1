@@ -380,7 +380,7 @@ _VALID_INTENTS = {"discovery", "anchor", "detail", "clarify_no_context", "clarif
 _VALID_ROUTES  = {"metadata", "rag"}
 
 
-def _route_turn(message: str, state: dict) -> dict:
+def _route_turn(message: str, state: dict, openai_key: str = "") -> dict:
     """
     Single LLM call that decides intent, search filters, display route, and
     which licitacion the user is referring to — all at once.
@@ -458,7 +458,7 @@ def _route_turn(message: str, state: dict) -> dict:
     }
 
     try:
-        client = OpenAI(api_key=_os.getenv("OPENAI_API_KEY"))
+        client = OpenAI(api_key=openai_key)
         resp = client.chat.completions.create(
             model="gpt-4o-mini",
             max_tokens=200,
@@ -528,7 +528,8 @@ def resolve_index(message: str, active: list):
 
 
 
-def _discover_via_chunks(conn, query: str, emb_model: str, top_k: int) -> list[dict]:
+def _discover_via_chunks(conn, query: str, emb_model: str, top_k: int,
+                         cohere_key: str = "", openai_key: str = "") -> list[dict]:
     """
     Semantic fallback for discovery: run vector search across all Vigente chunks,
     deduplicate by licitacion_id (preserving relevance order), fetch their metadata.
@@ -538,6 +539,7 @@ def _discover_via_chunks(conn, query: str, emb_model: str, top_k: int) -> list[d
         conn, query,
         model=emb_model, top_k=top_k,
         chunk_config=DEFAULT_CHUNK_CONFIG,
+        cohere_key=cohere_key, openai_key=openai_key,
     )
     seen = set()
     licitaciones = []
@@ -686,7 +688,7 @@ def _get_doc_chunks_for_summaries(conn, licitacion_ids: list) -> dict:
     return result
 
 
-def _batch_summarize(chunks_by_id: dict, model: str = "gpt-4o-mini", lang: str = "es") -> dict:
+def _batch_summarize(chunks_by_id: dict, model: str = "gpt-4o-mini", lang: str = "es", openai_key: str = "") -> dict:
     """
     One LLM call to produce a 2-sentence summary per licitacion.
     chunks_by_id: {licitacion_id: combined_text}
@@ -707,7 +709,7 @@ def _batch_summarize(chunks_by_id: dict, model: str = "gpt-4o-mini", lang: str =
     prompt = _T[lang]["summarize_prompt"] + "\n\n".join(blocks)
 
     try:
-        client = OpenAI(api_key=_os.getenv("OPENAI_API_KEY"))
+        client = OpenAI(api_key=openai_key)
         resp = client.chat.completions.create(
             model=model,
             max_tokens=800,
@@ -928,7 +930,8 @@ def _format_anchor_card(lic: dict, doc_types_list: list, lang: str = "es") -> st
 
 # ── Core chat logic ───────────────────────────────────────────────────────────
 
-def _prepare_turn(message: str, state: dict, emb_model: str, top_k: int, conn, lang: str = "es"):
+def _prepare_turn(message: str, state: dict, emb_model: str, top_k: int, conn, lang: str = "es",
+                  openai_key: str = "", cohere_key: str = ""):
     """
     Runs all non-LLM work for one chat turn.
 
@@ -940,7 +943,7 @@ def _prepare_turn(message: str, state: dict, emb_model: str, top_k: int, conn, l
       - llm_question : the cleaned question to send to the LLM (or None)
     """
     tr = _T[lang]
-    decision = _route_turn(message, state)
+    decision = _route_turn(message, state, openai_key=openai_key)
     intent   = decision["intent"]
 
     # Hard override: explicit index/ordinal reference always means anchor selection,
@@ -1012,7 +1015,8 @@ def _prepare_turn(message: str, state: dict, emb_model: str, top_k: int, conn, l
         materia      = search.get("materia") or None
         licitaciones = search_licitaciones(conn, keywords, materia, limit=None)
         if not licitaciones:
-            licitaciones = _discover_via_chunks(conn, message, emb_model, top_k)
+            licitaciones = _discover_via_chunks(conn, message, emb_model, top_k,
+                                                cohere_key=cohere_key, openai_key=openai_key)
         if not licitaciones:
             materias = _get_available_materias(conn)
             if materias:
@@ -1027,7 +1031,7 @@ def _prepare_turn(message: str, state: dict, emb_model: str, top_k: int, conn, l
         lid_list     = [l["id"] for l in display_lics if l.get("id")]
         doc_types    = _get_available_doc_types(conn, lid_list)
         chunks_by_id = _get_doc_chunks_for_summaries(conn, lid_list)
-        summaries    = _batch_summarize(chunks_by_id, lang=lang) if chunks_by_id else {}
+        summaries    = _batch_summarize(chunks_by_id, lang=lang, openai_key=openai_key) if chunks_by_id else {}
         suffix = f"\n\n{tr['showing_first_10'](n)}" if n > 10 else ""
         text = (
             f"{tr['found_n'](n)}\n\n"
@@ -1116,6 +1120,7 @@ def _prepare_turn(message: str, state: dict, emb_model: str, top_k: int, conn, l
         chunk_config=DEFAULT_CHUNK_CONFIG,
         licitacion_ids=licitacion_ids or [],
         doc_types=selected_doc_types or None,
+        cohere_key=cohere_key, openai_key=openai_key,
     )
 
     context = build_context(licitaciones, rag_chunks)
@@ -1128,7 +1133,8 @@ _NO_BTN = [gr.update()] * 11  # no-op: lic_selector + 8 btns + banner + right_pa
 
 
 def send_message(message: str, history: list, convo_id: str, chat_state: dict,
-                 emb_model: str, synth_model: str, top_k: int, lang: str = "es", api_key: str = ""):
+                 emb_model: str, synth_model: str, top_k: int, lang: str = "es",
+                 anthropic_key: str = "", openai_key: str = "", cohere_key: str = ""):
     """Streaming generator — yields 16 outputs:
     history, txt, convo_id, state, dropdown, lic_selector,
     btn_vigentes, btn_bases, btn_convocatoria, btn_junta, btn_req,
@@ -1151,7 +1157,8 @@ def send_message(message: str, history: list, convo_id: str, chat_state: dict,
     yield history, "", convo_id, chat_state, gr.update(), *_NO_BTN
 
     prefix, chat_state, llm_context, llm_question, _ = _prepare_turn(
-        message, chat_state, emb_model, top_k, conn, lang=lang
+        message, chat_state, emb_model, top_k, conn, lang=lang,
+        openai_key=openai_key, cohere_key=cohere_key,
     )
     anchor_id     = chat_state.get("anchor_id")
     indexed_types = _get_available_doc_types(conn, [anchor_id]).get(anchor_id, []) if anchor_id else []
@@ -1169,7 +1176,7 @@ def send_message(message: str, history: list, convo_id: str, chat_state: dict,
             yield history, "", convo_id, chat_state, gr.update(), sel_upd, *btns, banner_upd, right_upd
 
         full_llm = ""
-        for delta in synthesize_stream(llm_question or "", llm_context, model=synth_model, lang=lang, api_key=api_key):
+        for delta in synthesize_stream(llm_question or "", llm_context, model=synth_model, lang=lang, api_key=anthropic_key):
             full_llm += delta
             history[-1]["content"] = prefix + full_llm
             yield history, "", convo_id, chat_state, gr.update(), sel_upd, *btns, banner_upd, right_upd
@@ -1281,13 +1288,27 @@ def build_ui(emb_model: str, synth_model: str, top_k: int):
                     "🗑️ Eliminar esta conversación",
                     size="sm", variant="stop", visible=False,
                 )
-                with gr.Accordion("🔑 API Key", open=False):
-                    api_key_input = gr.Textbox(
+                with gr.Accordion("🔑 API Keys", open=False):
+                    anthropic_key_input = gr.Textbox(
                         label="Anthropic API Key",
                         placeholder="sk-ant-...",
                         type="password",
                         show_label=True,
-                        info="Paste your Claude API key. Never stored — only used for this session.",
+                        info="Used for answer synthesis (Claude). Never stored.",
+                    )
+                    openai_key_input = gr.Textbox(
+                        label="OpenAI API Key",
+                        placeholder="sk-...",
+                        type="password",
+                        show_label=True,
+                        info="Used for intent routing and licitacion summaries (gpt-4o-mini). Never stored.",
+                    )
+                    cohere_key_input = gr.Textbox(
+                        label="Cohere API Key",
+                        placeholder="...",
+                        type="password",
+                        show_label=True,
+                        info="Used for query embedding and reranking. Never stored.",
                     )
 
             # ── Chat area ─────────────────────────────────────────────────────
@@ -1335,7 +1356,8 @@ def build_ui(emb_model: str, synth_model: str, top_k: int):
                      btn_specs, btn_docs, btn_economic]
 
         send_in  = [txt, chatbot, convo_id, chat_state,
-                    gr.State(emb_model), gr.State(synth_model), gr.State(top_k), lang_state, api_key_input]
+                    gr.State(emb_model), gr.State(synth_model), gr.State(top_k), lang_state,
+                    anthropic_key_input, openai_key_input, cohere_key_input]
         send_out = ([chatbot, txt, convo_id, chat_state, convo_dropdown,
                      lic_selector] + _btn_outs +
                     [anchor_banner, right_panel_md])
