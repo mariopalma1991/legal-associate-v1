@@ -34,6 +34,10 @@ jobs:
     timeout-minutes: 150   # 2.5 h ceiling; adjust if embed step grows
 
     env:
+      DATABASE_URL:          ${{ secrets.DATABASE_URL }}
+      COHERE_API_KEY:        ${{ secrets.COHERE_API_KEY }}
+      OPENAI_API_KEY:        ${{ secrets.OPENAI_API_KEY }}
+      LLAMA_CLOUD_API_KEY:   ${{ secrets.LLAMA_CLOUD_API_KEY }}
       DATABASE_URL:        ${{ secrets.DATABASE_URL }}
       COHERE_API_KEY:      ${{ secrets.COHERE_API_KEY }}
       OPENAI_API_KEY:      ${{ secrets.OPENAI_API_KEY }}
