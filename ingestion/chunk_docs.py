@@ -414,6 +414,14 @@ def _process_batch(conn, docs, enc, chunk_size, overlap, use_llamaparse,
             errors += 1
             continue
 
+        if not chunks:
+            print(f"  [EMPTY] id={doc_id}  extractor returned 0 chunks (scanned/empty PDF?)")
+            if not rechunk_mode:
+                write_chunks(conn, str(doc_id), [], error="0 chunks extracted — likely scanned PDF",
+                             chunk_config=chunk_config)
+            errors += 1
+            continue
+
         parser_name = stored_parser if rechunk_mode else ("llamaparse" if use_llamaparse else "pymupdf")
         write_chunks(conn, str(doc_id), chunks,
                      parser_name=parser_name, chunk_config=chunk_config)
