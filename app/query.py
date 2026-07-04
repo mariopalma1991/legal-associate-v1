@@ -80,10 +80,11 @@ def get_conn():
 
 # ── Embedding ─────────────────────────────────────────────────────────────────
 
-def embed_query(question: str, model: str = "cohere") -> list[float]:
+def embed_query(question: str, model: str = "cohere",
+                cohere_key: str = "", openai_key: str = "") -> list[float]:
     if model == "cohere":
         import cohere
-        client = cohere.ClientV2(api_key=os.getenv("COHERE_API_KEY"))
+        client = cohere.ClientV2(api_key=cohere_key)
         resp = client.embed(
             texts=[question],
             model="embed-multilingual-v3.0",
@@ -93,7 +94,7 @@ def embed_query(question: str, model: str = "cohere") -> list[float]:
         return resp.embeddings.float_[0]
     elif model == "openai":
         from openai import OpenAI
-        resp = OpenAI(api_key=os.getenv("OPENAI_API_KEY")).embeddings.create(
+        resp = OpenAI(api_key=openai_key).embeddings.create(
             model="text-embedding-3-large",
             input=[question],
             dimensions=1536,
@@ -222,7 +223,8 @@ def retrieve_chunks(conn, question: str, model: str = "cohere",
                     rerank_candidates: int = DEFAULT_RERANK_CANDIDATES,
                     chunk_config: str = DEFAULT_CHUNK_CONFIG,
                     licitacion_ids: list | None = None,
-                    doc_types: list | None = None) -> list[dict]:
+                    doc_types: list | None = None,
+                    cohere_key: str = "", openai_key: str = "") -> list[dict]:
     """
     Dense vector retrieval with optional Cohere reranking.
     Pass licitacion_ids to scope retrieval to a specific licitacion (anchored mode).
@@ -231,7 +233,7 @@ def retrieve_chunks(conn, question: str, model: str = "cohere",
     """
     col = "emb_cohere" if model == "cohere" else "emb_openai"
     fetch_k = rerank_candidates if rerank else top_k
-    query_vec = embed_query(question, model)
+    query_vec = embed_query(question, model, cohere_key=cohere_key, openai_key=openai_key)
 
     lic_filter = ""
     lic_params = []
@@ -298,9 +300,9 @@ def retrieve_chunks(conn, question: str, model: str = "cohere",
             deduped.append(c)
     chunks = deduped
 
-    if rerank:
+    if rerank and cohere_key:
         import cohere
-        client = cohere.ClientV2(api_key=os.getenv("COHERE_API_KEY"))
+        client = cohere.ClientV2(api_key=cohere_key)
         resp = client.rerank(
             query=question,
             documents=[c["text"] for c in chunks],
@@ -442,7 +444,7 @@ def synthesize_stream(question: str, context: str, model: str = "gpt-4o", lang: 
 
     if not model.startswith("claude"):
         from openai import OpenAI
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        client = OpenAI(api_key=api_key)
         messages = [
             {"role": "system", "content": system},
             {"role": "user",   "content": user_msg},
@@ -465,7 +467,7 @@ def synthesize_stream(question: str, context: str, model: str = "gpt-4o", lang: 
                     raise
     else:
         import anthropic
-        client = anthropic.Anthropic(api_key=api_key or os.getenv("ANTHROPIC_API_KEY"))
+        client = anthropic.Anthropic(api_key=api_key)
         for attempt in range(4):
             try:
                 thinking = {"type": "adaptive"} if "opus" in model else None
