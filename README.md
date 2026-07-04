@@ -214,6 +214,21 @@ All keys are read from environment variables (`.env` file locally, Space Secrets
 
 ---
 
+## Synthesis model tradeoffs
+
+The answer synthesis step is the main cost and quality driver. Two practical options:
+
+| | `gpt-4o-mini` | `claude-sonnet-4-6` |
+|---|---|---|
+| Cost | ~$0.001/query | ~$0.018/query |
+| Answer quality | Good, concise | Better structured, more nuanced for legal text |
+| Latency | Fast | Fast (~1s TTFT) |
+| Providers needed | OpenAI only | OpenAI + Anthropic |
+
+The app defaults to `claude-sonnet-4-6`. Pass `--synthesis-model gpt-4o-mini` to switch.
+
+---
+
 ## Cost estimation
 
 A typical session with 10 questions costs approximately **$0.20–$0.25**:
