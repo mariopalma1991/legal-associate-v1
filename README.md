@@ -51,7 +51,7 @@ The target user is a sales representative or supplier who monitors government pr
 
 ```
 ingestion/
-  fetch_vigentes.py    → discover new Vigente licitaciones from XLS export
+  fetch_vigentes.py    → discover new Vigente licitaciones from search-based generated XLS export
   ingest.py            → scrape full metadata from portal HTML (async, 50 workers)
   download_docs.py     → download PDFs → Supabase Storage (10 workers)
   chunk_docs.py        → parse PDFs → text chunks (LlamaParse + PyMuPDF fallback)
@@ -197,8 +197,6 @@ Winner: **Dense Cohere + Rerank** — +1278% Hit@5 over BM25 alone.
 | Completeness | 4.90 |
 | **Average** | **5.31** |
 
-Faithfulness and completeness are limited by garbled text in PyMuPDF-parsed chunks (broken Unicode for Spanish accents in certain government PDFs). Re-parsing with a higher-quality OCR engine is tracked as a pending improvement in `PENDINGS.md`.
-
 ---
 
 ## Required API keys
@@ -293,3 +291,30 @@ python app/app.py --share                     # public Gradio link
 | `eval/generate_eval_set.py` | Generates evaluation questions with Claude Haiku |
 | `eval/eval_retriever.py` | Benchmarks retrieval strategies (BM25, dense, hybrid, rerank) |
 | `eval/eval_pipeline.py` | End-to-end answer quality evaluation with an LLM judge |
+
+---
+
+## Planned improvements
+
+### PDF parsing — moving away from LlamaParse
+
+The current pipeline uses LlamaParse (cloud OCR, ~$0.003/page) as the primary parser with PyMuPDF as a free fallback. PyMuPDF fails silently on scanned or image-based PDFs, producing zero chunks. LlamaParse handles these well but adds cost and an external dependency to the ingestion pipeline.
+
+Alternatives under consideration:
+
+| Option | Cost | Quality | Notes |
+|---|---|---|---|
+| **Docling** (IBM, open-source) | Free | High | Handles tables, multi-column layouts, Spanish accents; runs locally |
+| **Marker** (open-source) | Free | High | GPU-accelerated, fast on large PDFs; good layout preservation |
+| **Azure Document Intelligence** | ~$0.001/page | Very high | Strong on scanned government docs; supports Spanish |
+| **PyMuPDF only** | Free | Medium | Fast, zero cost; fails on image-only PDFs — acceptable if LlamaParse covers those cases |
+
+The likely direction is **Docling** as a zero-cost LlamaParse replacement for standard PDFs, with LlamaParse reserved only for documents that Docling fails on.
+
+### Additional file type support
+
+Government procurement packages frequently include file types beyond PDF that are currently ignored:
+
+- **Blueprints and technical drawings** (DWG, DXF, image-based PDFs) — architectural and civil engineering tenders attach AutoCAD files describing the physical scope of work. These could be described using a vision model (Claude or GPT-4o) to generate a text summary suitable for chunking and retrieval.
+- **Excel annexes** (XLSX) — already partially supported; quantity tables and BOQs (bills of quantities) are extracted but table structure is lost in plain-text chunking.
+- **ZIP/RAR packages** — already supported; extracts and processes contained PDFs, DOCX, and XLSX files.
