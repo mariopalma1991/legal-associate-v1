@@ -1,5 +1,5 @@
 ---
-title: Legal Associate — Licitaciones Públicas de Chihuahua
+title: Legal Associate — Public Tenders of Chihuahua State, Mexico
 emoji: 🏛️
 colorFrom: blue
 colorTo: indigo
@@ -18,6 +18,12 @@ A RAG-powered procurement assistant that monitors all active public tenders from
 ## Why use this instead of the government portal?
 
 The Chihuahua State procurement portal lists tenders, but finding and qualifying opportunities requires opening each record manually, downloading PDFs one by one, and reading through 50–100 page documents to extract the handful of facts that actually matter — participation cost, deadlines, technical requirements, required documents.
+
+These documents are also high on legal language, having an assistant for regular people that are willing to participate on these tenders is very helpful
+
+This will be my seed for the next project of Towards AI academy https://academy.towardsai.net/courses/agent-engineering course. The opportunity is good since in this case, I am only processing just one state out of the 32 available in the country, on top of this, federal government has its own tenders.
+
+My next step once I get this project done, is to create an Agentic RAG system, adding state by state or go big and try to process the Federal Tenders.
 
 **This assistant compresses that research from hours to seconds:**
 
