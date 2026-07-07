@@ -245,6 +245,8 @@ A typical session with 10 questions costs approximately **$0.20–$0.25**:
 
 ## Running locally
 
+### Run the app (existing database)
+
 ```bash
 # 1. Clone and create virtualenv
 git clone <repo-url>
@@ -253,27 +255,24 @@ python -m venv .venv
 # source .venv/bin/activate   # Linux/macOS
 
 # 2. Install dependencies
-pip install -r requirements-app.txt   # app only (Gradio + AI)
-# pip install -r requirements.txt     # full pipeline (adds parsing, scraping libs)
+pip install -r requirements-app.txt
 
 # 3. Set environment variables
 cp .env.example .env
-# Edit .env and fill in DATABASE_URL, ANTHROPIC_API_KEY, OPENAI_API_KEY, COHERE_API_KEY
+# Edit .env: DATABASE_URL, OPENAI_API_KEY, COHERE_API_KEY
+# ANTHROPIC_API_KEY is optional — users can paste it in the UI
 
-# 4. Set up the database schema
-python infra/setup_db.py
-
-# 5. Run the ingestion pipeline
-python run_pipeline.py                        # full run
-python run_pipeline.py --from chunk_docs      # resume from a step
-python run_pipeline.py --only embed_index     # run one step only
-
-# 6. Launch the app
+# 4. Launch the app
 python app/app.py
-python app/app.py --share                     # public Gradio link
+python app/app.py --share     # public Gradio link
 ```
 
----
+### Set up a fresh database and run the ingestion pipeline
+
+Only needed if connecting to a new Supabase instance or re-ingesting from scratch.
+
+```bash
+pip install -r requirements.txt   # full pipeline deps (parsing, scraping, etc.)
 
 ## Pipeline scripts
 
