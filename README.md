@@ -160,23 +160,25 @@ Two independent data sources are collected and curated by the scripts in this re
 
 ## Implemented optional functionalities
 
-1. **Streaming responses** — synthesis answers stream token-by-token via `synthesize_stream`, which calls the Claude streaming API and yields deltas directly to the Gradio `Chatbot` component.
+9 of the course optional functionalities are implemented:
 
-2. **RAG evaluation** — the `eval/` folder contains the full evaluation suite: `eval_set.json` (189 retriever questions + 100 end-to-end pipeline questions), `eval_retriever.py` (benchmarks five retrieval strategies), `eval_pipeline.py` (end-to-end scoring with an LLM judge), and results files for multiple model and chunk-config combinations.
+1. **Streaming responses** — `synthesize_stream` calls the Claude streaming API and yields token deltas directly to the Gradio `Chatbot` component, giving users immediate feedback on every query.
 
-3. **Domain-specific app** — focused entirely on Mexican public procurement law (licitaciones públicas del estado de Chihuahua). Not a generic Q&A or AI tutor.
+2. **RAG evaluation** — `eval/` contains the full suite: `eval_set.json` (189 retriever questions + 100 end-to-end pipeline questions), `eval_retriever.py` (benchmarks 5 retrieval strategies), `eval_pipeline.py` (LLM-as-judge scoring), and results files for multiple model and chunk-config combinations. Results are summarised in this README.
 
-4. **Two data sources with structured JSON** — HTML scraping produces `documentos_json` (structured list of PDF links per tender). The one-brain router (`_route_turn` in `app/app.py`) emits structured JSON `{intent, search, route, anchor_index}` that controls retrieval strategy, anchor switching, and response mode — all from a single LLM call per turn.
+3. **Domain-specific app** — focused entirely on Mexican public procurement (licitaciones públicas del estado de Chihuahua). The assistant understands procurement-specific language, document types (Bases, Convocatoria, Acta de Junta de Aclaraciones), and urgency signals specific to this domain.
 
-5. **PDFs parsed for RAG** — the full pipeline downloads and parses government PDFs using LlamaParse with PyMuPDF as a fallback. Parsed text is stored per-document in `raw_text` (JSONB) and re-chunked without re-parsing. Chunks are the primary source for technical specifications, requirements, and clarification content.
+4. **Two data sources beyond course materials** — (a) portal HTML pages scraped from the Chihuahua State government procurement portal, and (b) official PDF documents (Bases, Convocatorias, Actas) downloaded for every active tender and parsed for retrieval.
 
-6. **Reranker** — `retrieve_chunks` fetches up to 200 candidates from pgvector then re-ranks them with Cohere `rerank-multilingual-v3.0`, cutting to the top-K before synthesis. This is the best-performing retrieval configuration (see evaluation results).
+5. **Structured JSON outputs for advanced RAG** — the HTML parser emits `documentos_json` (structured list of `{tipo, url}` objects per tender). The one-brain router (`_route_turn`) emits structured JSON `{intent, search, route, anchor_index}` that drives retrieval strategy, anchor switching, and response mode — all from a single LLM call per turn.
 
-7. **Metadata filtering** — `search_licitaciones` filters by `materia` (sector), keyword ILIKE on `descripcion` and `concepto_contratacion`, and date (only records whose `fecha_apertura` is in the future). Filters are extracted from the user message by the router LLM and always applied as parameterized SQL — no injection risk.
+6. **PDFs parsed for RAG** — government PDFs are downloaded and parsed with LlamaParse (cloud OCR) with PyMuPDF as a free fallback. Parsed text is cached in `raw_text` (JSONB) per document, enabling re-chunking without re-parsing. Chunks power all technical specification, requirement, and clarification queries.
 
-8. **Query routing** — `_route_turn` classifies every message into one of five intents (`discovery`, `anchor`, `detail`, `clarify_no_context`, `clarify_which`) and selects a route (`metadata` for a structured card, `rag` for PDF retrieval). This avoids unnecessary embedding or synthesis calls for simple metadata lookups.
+7. **Reranker** — `retrieve_chunks` fetches up to 200 vector candidates then re-ranks with Cohere `rerank-multilingual-v3.0`, cutting to top-K before synthesis. Evaluated as the best-performing retrieval strategy (+1278% Hit@5 over BM25 alone).
 
-9. **Automated daily pipeline** — a GitHub Actions workflow (`.github/workflows/daily_pipeline.yml`) runs the full ingestion pipeline every night: refresh status → cleanup Terminado records → fetch new → ingest → download → chunk → embed.
+8. **Metadata filtering** — `search_licitaciones` filters by `materia` (sector), keyword ILIKE across description fields, and date (only tenders whose `fecha_apertura` is in the future). Filters are extracted from the user message by the router LLM and applied as parameterized SQL.
+
+9. **Query routing** — `_route_turn` classifies every message into one of five intents (`discovery`, `anchor`, `detail`, `clarify_no_context`, `clarify_which`) and selects a retrieval route (`metadata` for a structured card, `rag` for PDF retrieval). Prevents unnecessary embedding or synthesis calls for simple metadata lookups.
 
 ---
 
